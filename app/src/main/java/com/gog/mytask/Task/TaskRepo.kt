@@ -2,12 +2,8 @@ package com.gog.mytask.Task
 
 import android.content.Context
 import android.util.Log
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
-import androidx.core.content.ContentProviderCompat.requireContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gog.mytask.R
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -74,7 +70,41 @@ class MyViewModel : ViewModel() {
     val parentData: StateFlow<List<Specification>> = _parentData.asStateFlow()
 
 
+    fun createMainState(newId: String?): MutableMap<String, HashMap<String, SelectedParent>?> {
+        val parent = HashMap<String, SelectedParent>()
+        val superParent: MutableMap<String, HashMap<String, SelectedParent>?> =
+            mutableMapOf()
+        packageData.value?.specifications?.filter { it.isParentAssociate }?.forEach { spec ->
+            spec.list.filter { if (newId != null) it._id == newId else it.is_default_selected }
+                ?.forEach { ds ->
+                    val childList = mutableListOf<SelectedChild>()
+                    packageData.value?.specifications?.filter { ds._id == it.modifierId }?.forEach { doc ->
+                        doc.list.filter { it.is_default_selected }?.forEach { child ->
+                            Log.d("superParent", child.toString())
+                            childList.add(
+                                SelectedChild(
+                                    quantity = if (spec.user_can_add_specification_quantity == true) 0 else 1,
+                                    id = child._id,
+                                    price = child.price
+                                )
+                            )
+                            Log.d("superParent", "childList ${childList.toString()}")
+                        }
+                    }
+                    val price = ds.price
+                    val quantity = if (spec.user_can_add_specification_quantity == true) 1 else 0
 
+                    parent[ds._id] =
+                        SelectedParent(quantity = quantity, price = price, childs = childList)
+                    superParent[spec._id] = parent
+
+                    Log.d("superParent", superParent.toString())
+
+                }
+        }
+
+        return superParent
+    }
 //
 //    private val _transformedData = MutableStateFlow<List<Parent>>(emptyList())
 //    val transformedData: StateFlow<List<Parent>> = _transformedData.asStateFlow()
@@ -99,7 +129,7 @@ data class SelectedChild(
 data class SelectedParent(
     val quantity: Int = 0,
     val price: Int = 0,
-    val childs: List<SelectedChild>
+    var childs: List<SelectedChild>
 )
 //fun transformProductToParent(product: Product): List<Parent> {
 //    return product.specifications.map { spec ->
