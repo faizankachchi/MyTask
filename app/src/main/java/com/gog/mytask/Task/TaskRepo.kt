@@ -77,25 +77,29 @@ class MyViewModel : ViewModel() {
         packageData.value?.specifications?.filter { it.isParentAssociate }?.forEach { spec ->
             spec.list.filter { if (newId != null) it._id == newId else it.is_default_selected }
                 ?.forEach { ds ->
-                    val childList = mutableListOf<SelectedChild>()
-                    packageData.value?.specifications?.filter { ds._id == it.modifierId }?.forEach { doc ->
-                        doc.list.filter { it.is_default_selected }?.forEach { child ->
-                            Log.d("superParent", child.toString())
-                            childList.add(
-                                SelectedChild(
-                                    quantity = if (spec.user_can_add_specification_quantity == true) 0 else 1,
-                                    id = child._id,
-                                    price = child.price
+
+                    val childsMap = HashMap<String, MutableList<SelectedChild>>()
+                    packageData.value?.specifications?.filter { ds._id == it.modifierId }
+                        ?.forEach { doc ->
+                            val childList = mutableListOf<SelectedChild>()
+                            doc.list.filter { it.is_default_selected }?.forEach { child ->
+                                Log.d("superParent", child.toString())
+                                childList.add(
+                                    SelectedChild(
+                                        quantity = if (spec.user_can_add_specification_quantity == true) 0 else 1,
+                                        id = child._id,
+                                        price = child.price
+                                    )
                                 )
-                            )
-                            Log.d("superParent", "childList ${childList.toString()}")
+                                Log.d("superParent", "childList ${childList.toString()}")
+                            }
+                            childsMap[doc._id] = childList
                         }
-                    }
                     val price = ds.price
                     val quantity = if (spec.user_can_add_specification_quantity == true) 1 else 0
 
                     parent[ds._id] =
-                        SelectedParent(quantity = quantity, price = price, childs = childList)
+                        SelectedParent(quantity = quantity, price = price, childs =childsMap)
                     superParent[spec._id] = parent
 
                     Log.d("superParent", superParent.toString())
@@ -129,7 +133,7 @@ data class SelectedChild(
 data class SelectedParent(
     val quantity: Int = 0,
     val price: Int = 0,
-    var childs: List<SelectedChild>
+    var childs: HashMap<String, MutableList<SelectedChild>>
 )
 //fun transformProductToParent(product: Product): List<Parent> {
 //    return product.specifications.map { spec ->

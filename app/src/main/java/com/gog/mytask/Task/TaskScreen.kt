@@ -36,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -56,45 +57,42 @@ fun HomeCleaningScreen(viewModel: MyViewModel) {
     val selectedOption = remember { mutableStateOf<String?>(null) }
     val selectTotal = remember { mutableStateOf<Int?>(0) }
 
-
-    //    val mainState = remember {
-//        mutableStateOf(
-//            mutableMapOf<String, MutableMap<String, List<MutableMap<String, Any>>>>()
-//        )
-//    }
-
-
-//    val mainState = remember {
-//        mutableStateOf(
-//            mutableMapOf<HashMap<String, SelectedParent>>()
-//        )
-//    }
-
-
     val mainState = remember {
         mutableStateOf(
             mutableMapOf<String, HashMap<String, SelectedParent>?>()
         )
     }
 
-    fun calculatePriceSum(data: Map<String, Map<String, List<Map<String, Any>>>>): Int {
-        var totalSum = 0
+    val recompose = remember {
+        mutableStateOf(false)
+    }
+    LaunchedEffect(recompose.value) {
 
-        for (innerMap in data.values) {
-            for (items in innerMap.values) {
-                for (item in items) {
-                    val price = item["price"] as? Int ?: 0
-                    val quantity = item["quantity"] as? Int ?: 0
-                    totalSum += price * quantity
+    }
+    fun calculateTotalPrice(data: MutableMap<String, HashMap<String, SelectedParent>?>): Int {
+        var totalPrice = 0
+
+        // Iterate through each parent
+        data.values.forEach { parentMap ->
+            parentMap?.let { parent ->
+                parent.values.forEach { selectedParent ->
+                    totalPrice += selectedParent.price // Add parent's price
+
+                    // Iterate through each child
+                    selectedParent.childs.forEach { (childKey, childList) ->
+                        childList.forEach { child ->
+                            totalPrice += child.price * child.quantity // Add child's price multiplied by quantity
+                        }
+                    }
                 }
             }
         }
 
-        return totalSum
+        return totalPrice
     }
 
 
-//    var sum = calculatePriceSum(mainState.value)
+    var sum = calculateTotalPrice(mainState.value)
 //    Log.d("sumsum", sum.toString())
     LaunchedEffect(data) {
         mainState.value = viewModel.createMainState(null)
@@ -103,19 +101,14 @@ fun HomeCleaningScreen(viewModel: MyViewModel) {
     Log.d("selectedOption", "${selectedOption.value}")
 
     Log.d("selectedOption", "${selectedOption.value}")
-    Scaffold(
-        bottomBar = { BottomBar(0) },
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(text = "${data.value?.name?.get(0)}") },
-                navigationIcon = {
-                    IconButton(
-                        onClick = { }) {
-                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                })
-        }
-    ) { innerpadding ->
+    Scaffold(bottomBar = { BottomBar(sum) }, topBar = {
+        CenterAlignedTopAppBar(title = { Text(text = "${data.value?.name?.get(0)}") },
+            navigationIcon = {
+                IconButton(onClick = { }) {
+                    Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
+                }
+            })
+    }) { innerpadding ->
 
         Log.d("HomeCleaningScreen", "HomeCleaningScreen: $data")
         Column(
@@ -142,20 +135,16 @@ fun HomeCleaningScreen(viewModel: MyViewModel) {
             data.value?.specifications?.filter { it.isParentAssociate }?.map { doc ->
                 Log.d("checkData", mainState.value.toString())
                 val selectedId = mainState.value[doc._id]
-                val childData =
-                    data.value?.specifications?.filter {
-                        it.isAssociated == true && selectedId?.get(
-                            it.modifierId
-                        ) != null
-                    }
+                val childData = data.value?.specifications?.filter {
+                    it.isAssociated == true && selectedId?.get(
+                        it.modifierId
+                    ) != null
+                }
 
 //
                 if (childData != null) {
                     DataCard(
-                        doc,
-                        childData,
-                        mainState,
-                        viewModel
+                        doc, childData, mainState, viewModel, recompose
                     )
                 }
             }
@@ -210,7 +199,8 @@ fun CheckOrRadio(
 
     Column {
         Row(
-            modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (type == 1) {
@@ -236,7 +226,11 @@ fun CheckOrRadio(
                 ) {
                     Checkbox(
                         checked = selectedOption,
-                        onCheckedChange = { onOptionSelected() },
+                        onCheckedChange = {
+                            Log.d("selectId", "Call Checkbox")
+                            onOptionSelected()
+
+                        },
 
                         )
                     Text(name, maxLines = 1) // maxLines 2 working
@@ -272,12 +266,10 @@ fun IncrementDecrementComponent(size: Int = 1, quantity: Int? = 0, onClick: (Str
         horizontalArrangement = Arrangement.Center
     ) {
         IconButton(
-            onClick = { onClick("-") },
-            modifier = Modifier.size(if (size == 1) 20.dp else 36.dp)
+            onClick = { onClick("-") }, modifier = Modifier.size(if (size == 1) 20.dp else 36.dp)
         ) {
             Text(
-                "-",
-                fontSize = if (size == 1) 16.sp else 24.sp, modifier = Modifier
+                "-", fontSize = if (size == 1) 16.sp else 24.sp, modifier = Modifier
 //                    .padding(bottom = 6.dp)
             )
         }
@@ -290,8 +282,7 @@ fun IncrementDecrementComponent(size: Int = 1, quantity: Int? = 0, onClick: (Str
         Text(
             text = quantity.toString(),
             fontSize = if (size == 1) 16.sp else 24.sp,
-            modifier = Modifier
-                .padding(horizontal = if (size == 1) 7.dp else 16.dp)
+            modifier = Modifier.padding(horizontal = if (size == 1) 7.dp else 16.dp)
         )
 
         Divider(
@@ -303,13 +294,11 @@ fun IncrementDecrementComponent(size: Int = 1, quantity: Int? = 0, onClick: (Str
         )
 
         IconButton(
-            onClick = { onClick("+") },
-            modifier = Modifier.size(if (size == 1) 20.dp else 36.dp)
+            onClick = { onClick("+") }, modifier = Modifier.size(if (size == 1) 20.dp else 36.dp)
 
         ) {
             Text(
-                "+",
-                fontSize = if (size == 1) 16.sp else 24.sp,
+                "+", fontSize = if (size == 1) 16.sp else 24.sp,
 
                 modifier = Modifier
 //                    .padding(bottom = 6.dp)
@@ -325,66 +314,65 @@ fun DataCard(
     childData: List<Specification>,
     mainState: MutableState<MutableMap<String, HashMap<String, SelectedParent>?>>,
     viewModel: MyViewModel,
+    recompose: MutableState<Boolean>,
 
     ) {
-    var currentState = mainState.value.toMutableMap()
-    mainState.value = currentState.toMap().toMutableMap()
-
     fun handleSelection(
+        childId: String,
         parentId: String?,
-        data: Specification,
-        parent: Boolean? = null,
-        child: Boolean? = null,
-        dataId: String,
-        childDataId: String,
+        superParentId: String,
+        subChildId: String,
         price: Int,
         quantity: Int,
         range: Int,
         maxRange: Int,
-        showToast: (String) -> Unit
+        showToast: (String) -> Unit,
     ) {
 
-        var childMaps = currentState[dataId]?.toMutableMap() ?: hashMapOf()
+        var currentState = mainState.value.toMutableMap()
 
-        if (parent == true) {
-//            Log.d("childSearch1", parent.toString())
-            if (childMaps[childDataId] == null) {
-                mainState.value = viewModel.createMainState(childDataId)
+        var childMaps = mainState.value.get(superParentId)?.toMutableMap() ?: hashMapOf()
+
+        if (childId == "") {
+            if (childMaps[subChildId] == null) {
+                mainState.value = viewModel.createMainState(subChildId)
             }
         } else {
-            val childSearch = childMaps[parentId]?.childs?.filter { it.id == childDataId }
+            val childSearch =
+                childMaps[parentId]?.childs?.get(childId)?.filter { it.id == subChildId }
             if (childSearch != null && childSearch.isNotEmpty()) {
-                val childSearch1 = childMaps[parentId]?.childs?.filter { it.id != childDataId }
+                val childSearch1 =
+                    childMaps[parentId]?.childs?.get(childId)?.filter { it.id != subChildId }
                 if (childSearch1 != null) {
-                    currentState[dataId]?.get(parentId)?.childs = childSearch1
+                    mainState.value.get(superParentId)?.get(parentId)?.childs?.put(
+                        childId, childSearch1.toMutableList()
+                    )
                 }
-                mainState.value = currentState.toMutableMap()
                 Log.d("childSearch1", "remove data ${mainState.value}")
             } else {
-                val newChild = SelectedChild(quantity = quantity, price = price, id = childDataId)
+                val newChild = SelectedChild(quantity = quantity, price = price, id = subChildId)
                 Log.d("childSearch1", "handleSelection: $newChild")
-//                currentState[dataId]?.get(parentId)?.childs?.plus(newChild)
-                val currentChilds =
-                    currentState[dataId]?.get(parentId)?.childs?.toMutableList() ?: mutableListOf()
-                currentChilds.add(newChild)
-                currentState[dataId]?.get(parentId)?.childs = currentChilds
-                Log.d("childSearch1", "find my data $currentState")
 
-                mainState.value = currentState.toMutableMap()
+                mainState.value.get(superParentId)?.get(parentId)?.childs?.get(childId)
+                    ?.let { list ->
+                        list.add(newChild)
+                    } ?: run {
+                    mainState.value.get(superParentId)?.get(parentId)?.childs?.put(
+                        childId, mutableListOf(newChild)
+                    )
+                }
+                Log.d("childSearch1", "mainState.value: ${mainState.value}")
+
+
             }
         }
-
-
+        recompose.value = !recompose.value
     }
-
-
-
+    Log.d("mainState.value", "data upadate mainState.value ${mainState.value}")
     Spacer(modifier = Modifier.height(2.dp))
     Divider(
-        color = Color.LightGray,
-        modifier = Modifier.fillMaxWidth()
+        color = Color.LightGray, modifier = Modifier.fillMaxWidth()
     )
-    Log.d("mainState.value", "mainState.value ${mainState.value}")
     val context = LocalContext.current
     MainAllTitle(data.name[0], data.range, data.is_required)
 
@@ -400,66 +388,52 @@ fun DataCard(
             parentId == it._id,
         ) {
             handleSelection(
+                "",
                 parentId,
-                data,
-                data.isParentAssociate,
-                data.isAssociated,
                 data._id,
                 it._id,
                 it.price,
                 if (data.user_can_add_specification_quantity == true) 1 else 0,
                 data.range,
-                data.max_range
-            ) { message ->
-                Toast.makeText(
-                    context, message, Toast.LENGTH_LONG
-                ).show()
-            }
+                data.max_range,
+                { message ->
+                    Toast.makeText(
+                        context, message, Toast.LENGTH_LONG
+                    ).show()
+                },
+
+                )
         }
     }
     Spacer(modifier = Modifier.height(10.dp))
     Divider(
-        color = Color.LightGray,
-        modifier = Modifier.fillMaxWidth()
+        color = Color.LightGray, modifier = Modifier.fillMaxWidth()
     )
-
-
     childData.sortedBy { it.sequence_number }.forEach {
         Spacer(modifier = Modifier.height(20.dp))
         MainAllTitle(name = it.name[0], range = it.max_range, isRequired = it.is_required)
         it.list.sortedBy { it.sequence_number }.forEach { subChild ->
+            val selectedIds = derivedStateOf {
+                mainState.value?.get(data._id)?.get(parentId)?.childs?.get(it._id)?.map { it.id }
+                    ?: emptyList()
+            }
 
-//            val selectedIds = superParent?.get(parentId)?.childs?.map { doc ->
-//                doc.id
-//            }
-            val selectedIds =
-                mainState.value[data._id]?.get(parentId)?.childs?.map { doc -> doc.id }
-
-//            val selectedIds = mainState.value[data._id]?.get(parentId)?.childs?.map { doc -> doc.id }
-
-//            val selectedIds = parentData?.childs?.map { doc ->
-//                doc.id
-//            }
-            val cd = parentData?.childs?.filter { it.id == subChild._id }
+            val cd = parentData?.childs?.get(it._id)?.filter { it.id == subChild._id }
             val quantity = if (cd?.isNotEmpty() == true) cd[0].quantity else null
-
-
-            Log.d("checkData", "@@@ ${subChild._id} ${data._id} ${it._id} ${selectedIds}")
-
+//            Log.d("checkData", "@@@ ${subChild._id} ${data._id} ${it._id} ${selectedIds}")
             CheckOrRadio(
                 type = it.type,
                 name = subChild.name[0],
                 price = subChild.price,
-                selectedOption = selectedIds != null && subChild._id in selectedIds,
+                selectedOption = selectedIds != null && subChild._id in selectedIds.value,
                 quantity,
             ) {
+                Log.d("selectedIds", "selectedIds call")
                 handleSelection(
+                    childId = it._id,
                     parentId,
-                    data,
-                    it.isParentAssociate,
-                    it.isAssociated,
-                    data._id,
-                    subChild._id,
+                    superParentId = data._id,
+                    subChildId = subChild._id,
                     subChild.price,
                     if (it.user_can_add_specification_quantity == true) 1 else 0,
                     data.range,
@@ -475,8 +449,7 @@ fun DataCard(
         }
 //
         Divider(
-            color = Color.LightGray,
-            modifier = Modifier.fillMaxWidth()
+            color = Color.LightGray, modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(modifier = Modifier.height(20.dp))

@@ -98,7 +98,7 @@
                ],
                "price":0,
                "sequence_number":0,
-               "is_default_selected":true,
+               "is_default_selected":false,
                
                "specification_group_id":"621da898abb8a52242c1830f",
                "unique_id":6762
@@ -110,7 +110,7 @@
                ],
                "price":149,
                "sequence_number":1,
-               "is_default_selected":true,
+               "is_default_selected":false,
                
                "specification_group_id":"621da898abb8a52242c1830f",
                "unique_id":6763
