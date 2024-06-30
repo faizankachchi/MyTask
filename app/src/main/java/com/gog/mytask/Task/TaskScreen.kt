@@ -107,7 +107,7 @@ fun HomeCleaningScreen(viewModel: MyViewModel) {
         bottomBar = { BottomBar(0) },
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(text = "${data.value?.name?.get(0)}${selectTotal.value}") },
+                title = { Text(text = "${data.value?.name?.get(0)}") },
                 navigationIcon = {
                     IconButton(
                         onClick = { }) {
@@ -205,6 +205,9 @@ fun CheckOrRadio(
     onOptionSelected: () -> Unit // Callback to notify parent of selection changes){}){}
 
 ) {
+
+//    Log.d("childSearch1", " selectedOption selectedOption ${selectedOption.toString()}")
+
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
@@ -324,6 +327,9 @@ fun DataCard(
     viewModel: MyViewModel,
 
     ) {
+    var currentState = mainState.value.toMutableMap()
+    mainState.value = currentState.toMap().toMutableMap()
+
     fun handleSelection(
         parentId: String?,
         data: Specification,
@@ -337,31 +343,34 @@ fun DataCard(
         maxRange: Int,
         showToast: (String) -> Unit
     ) {
-        var currentState = mainState.value.toMutableMap()
+
         var childMaps = currentState[dataId]?.toMutableMap() ?: hashMapOf()
 
         if (parent == true) {
-            Log.d("childSearch1", parent.toString())
+//            Log.d("childSearch1", parent.toString())
             if (childMaps[childDataId] == null) {
                 mainState.value = viewModel.createMainState(childDataId)
             }
         } else {
             val childSearch = childMaps[parentId]?.childs?.filter { it.id == childDataId }
-            if (childSearch != null && childSearch.size > 0) {
+            if (childSearch != null && childSearch.isNotEmpty()) {
                 val childSearch1 = childMaps[parentId]?.childs?.filter { it.id != childDataId }
                 if (childSearch1 != null) {
-                    currentState[dataId]?.get(parentId)?.childs =  childSearch1
+                    currentState[dataId]?.get(parentId)?.childs = childSearch1
                 }
-                mainState.value = currentState
-                Log.d("childSearch1", "remove data ${mainState.value.toString()}")
-
+                mainState.value = currentState.toMutableMap()
+                Log.d("childSearch1", "remove data ${mainState.value}")
             } else {
                 val newChild = SelectedChild(quantity = quantity, price = price, id = childDataId)
                 Log.d("childSearch1", "handleSelection: $newChild")
-                currentState[dataId]?.get(parentId)?.childs?.plus(newChild)
-                Log.d("childSearch1", "find my data ${currentState.toString()}")
+//                currentState[dataId]?.get(parentId)?.childs?.plus(newChild)
+                val currentChilds =
+                    currentState[dataId]?.get(parentId)?.childs?.toMutableList() ?: mutableListOf()
+                currentChilds.add(newChild)
+                currentState[dataId]?.get(parentId)?.childs = currentChilds
+                Log.d("childSearch1", "find my data $currentState")
 
-                mainState.value = currentState
+                mainState.value = currentState.toMutableMap()
             }
         }
 
@@ -382,7 +391,7 @@ fun DataCard(
     val superParent = mainState.value.get(data._id)
     val parentId = superParent?.keys?.first()
     val parentData = superParent?.get(parentId)
-
+    Log.d("childSearch1", "parentId ${parentId.toString()}")
     data.list.sortedBy { it.sequence_number }.forEach {
         CheckOrRadio(
             data.type,
@@ -407,7 +416,6 @@ fun DataCard(
                 ).show()
             }
         }
-
     }
     Spacer(modifier = Modifier.height(10.dp))
     Divider(
@@ -417,18 +425,26 @@ fun DataCard(
 
 
     childData.sortedBy { it.sequence_number }.forEach {
-
         Spacer(modifier = Modifier.height(20.dp))
         MainAllTitle(name = it.name[0], range = it.max_range, isRequired = it.is_required)
         it.list.sortedBy { it.sequence_number }.forEach { subChild ->
-            val selectedIds = parentData?.childs?.map { doc ->
-                doc.id
-            }
+
+//            val selectedIds = superParent?.get(parentId)?.childs?.map { doc ->
+//                doc.id
+//            }
+            val selectedIds =
+                mainState.value[data._id]?.get(parentId)?.childs?.map { doc -> doc.id }
+
+//            val selectedIds = mainState.value[data._id]?.get(parentId)?.childs?.map { doc -> doc.id }
+
+//            val selectedIds = parentData?.childs?.map { doc ->
+//                doc.id
+//            }
             val cd = parentData?.childs?.filter { it.id == subChild._id }
             val quantity = if (cd?.isNotEmpty() == true) cd[0].quantity else null
 
 
-            Log.d("checkData", "@@@ ${selectedIds} ${data._id} ${it._id}")
+            Log.d("checkData", "@@@ ${subChild._id} ${data._id} ${it._id} ${selectedIds}")
 
             CheckOrRadio(
                 type = it.type,
