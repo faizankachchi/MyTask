@@ -72,7 +72,6 @@ fun HomeCleaningScreen(viewModel: MyViewModel) {
     fun calculateTotalPrice(data: MutableMap<String, HashMap<String, SelectedParent>?>): Int {
         var totalPrice = 0
 
-        // Iterate through each parent
         data.values.forEach { parentMap ->
             parentMap?.let { parent ->
                 parent.values.forEach { selectedParent ->
@@ -87,12 +86,12 @@ fun HomeCleaningScreen(viewModel: MyViewModel) {
                 }
             }
         }
-
         return totalPrice
     }
 
 
     var sum = calculateTotalPrice(mainState.value)
+
 //    Log.d("sumsum", sum.toString())
     LaunchedEffect(data) {
         mainState.value = viewModel.createMainState(null)
@@ -191,12 +190,9 @@ fun CheckOrRadio(
     price: Int,
     selectedOption: Boolean,
     quantity: Int? = 0,
-    onOptionSelected: () -> Unit // Callback to notify parent of selection changes){}){}
+    onOptionSelected: (String?) -> Unit // Callback to notify parent of selection changes){}){}
 
 ) {
-
-//    Log.d("childSearch1", " selectedOption selectedOption ${selectedOption.toString()}")
-
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -210,7 +206,7 @@ fun CheckOrRadio(
                     RadioButton(
                         selected = selectedOption,
                         onClick = {
-                            onOptionSelected()
+                            onOptionSelected(null)
                         },
                     )
                     Text("${name}", maxLines = 2)
@@ -228,11 +224,9 @@ fun CheckOrRadio(
                         checked = selectedOption,
                         onCheckedChange = {
                             Log.d("selectId", "Call Checkbox")
-                            onOptionSelected()
-
+                            onOptionSelected(null)
                         },
-
-                        )
+                    )
                     Text(name, maxLines = 1) // maxLines 2 working
                 }
                 Row(
@@ -242,7 +236,9 @@ fun CheckOrRadio(
                 ) {
                     Row() {
                         if (selectedOption) {
-                            IncrementDecrementComponent(size = 1, quantity, {})
+                            IncrementDecrementComponent(size = 1,
+                                quantity,
+                                onClick = { it -> onOptionSelected(it) })
                         }
                     }
                     Text(text = "₹$price")
@@ -255,8 +251,6 @@ fun CheckOrRadio(
 
 @Composable
 fun IncrementDecrementComponent(size: Int = 1, quantity: Int? = 0, onClick: (String) -> Unit) {
-
-
     Row(
         modifier = Modifier
 //            .padding(bottom = 8.dp)
@@ -295,7 +289,6 @@ fun IncrementDecrementComponent(size: Int = 1, quantity: Int? = 0, onClick: (Str
 
         IconButton(
             onClick = { onClick("+") }, modifier = Modifier.size(if (size == 1) 20.dp else 36.dp)
-
         ) {
             Text(
                 "+", fontSize = if (size == 1) 16.sp else 24.sp,
@@ -318,6 +311,7 @@ fun DataCard(
 
     ) {
     fun handleSelection(
+        countId: String?,
         childId: String,
         parentId: String?,
         superParentId: String,
@@ -328,46 +322,62 @@ fun DataCard(
         maxRange: Int,
         showToast: (String) -> Unit,
     ) {
-
-        var currentState = mainState.value.toMutableMap()
-
         var childMaps = mainState.value.get(superParentId)?.toMutableMap() ?: hashMapOf()
 
         if (childId == "") {
             if (childMaps[subChildId] == null) {
                 mainState.value = viewModel.createMainState(subChildId)
             }
-        } else {
-            val childSearch =
-                childMaps[parentId]?.childs?.get(childId)?.filter { it.id == subChildId }
-            if (childSearch != null && childSearch.isNotEmpty()) {
-                val childSearch1 =
-                    childMaps[parentId]?.childs?.get(childId)?.filter { it.id != subChildId }
-                if (childSearch1 != null) {
-                    mainState.value.get(superParentId)?.get(parentId)?.childs?.put(
-                        childId, childSearch1.toMutableList()
-                    )
+        } else if (countId != null) {
+            var childList = childMaps[parentId]?.childs?.get(childId)
+            if (countId == "+") {
+                childList?.forEach {
+                    if (it.id == subChildId) {
+                        it.quantity += 1
+                    }
                 }
-                Log.d("childSearch1", "remove data ${mainState.value}")
+                Log.d("handleSelection", "Increased quantity: ${mainState.value}")
             } else {
-                val newChild = SelectedChild(quantity = quantity, price = price, id = subChildId)
-                Log.d("childSearch1", "handleSelection: $newChild")
+                childList?.forEach {
+                    if (it.id == subChildId && it.quantity > 1) {
+                        it.quantity -= 1
+                    }
+                }
+            }
+        } else {
+            val childList = childMaps[parentId]?.childs?.get(childId)
+            val selectedCount = childList?.size ?: 0
 
-                mainState.value.get(superParentId)?.get(parentId)?.childs?.get(childId)
-                    ?.let { list ->
-                        list.add(newChild)
-                    } ?: run {
-                    mainState.value.get(superParentId)?.get(parentId)?.childs?.put(
+            // Check if trying to remove an existing selection
+            val childToRemove = childList?.find { it.id == subChildId }
+            if (childToRemove != null) {
+                childList.remove(childToRemove)
+                Log.d("handleSelection", "Removed: $childToRemove")
+            } else {
+                // Check maxRange before adding a new selection
+                if (selectedCount >= maxRange) {
+                    showToast("Maximum selection reached. Only $maxRange items can be selected.")
+                    return
+                }
+
+                val newChild = SelectedChild(quantity = quantity, price = price, id = subChildId)
+                Log.d("handleSelection", "Adding: $newChild")
+
+                if (childList != null) {
+                    childList.add(newChild)
+                } else {
+                    mainState.value[superParentId]?.get(parentId)?.childs?.put(
                         childId, mutableListOf(newChild)
                     )
                 }
-                Log.d("childSearch1", "mainState.value: ${mainState.value}")
-
-
             }
+            Log.d("handleSelection", "mainState.value: ${mainState.value}")
         }
+
         recompose.value = !recompose.value
     }
+
+
     Log.d("mainState.value", "data upadate mainState.value ${mainState.value}")
     Spacer(modifier = Modifier.height(2.dp))
     Divider(
@@ -386,8 +396,9 @@ fun DataCard(
             it.name[0],
             it.price,
             parentId == it._id,
-        ) {
+        ) { countId ->
             handleSelection(
+                countId,
                 "",
                 parentId,
                 data._id,
@@ -427,9 +438,10 @@ fun DataCard(
                 price = subChild.price,
                 selectedOption = selectedIds != null && subChild._id in selectedIds.value,
                 quantity,
-            ) {
+            ) { countId ->
                 Log.d("selectedIds", "selectedIds call")
                 handleSelection(
+                    countId,
                     childId = it._id,
                     parentId,
                     superParentId = data._id,
@@ -460,6 +472,11 @@ fun DataCard(
 
 @Composable
 fun BottomBar(sum: Int) {
+    var count = remember {
+        mutableStateOf(
+            1
+        )
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -469,7 +486,18 @@ fun BottomBar(sum: Int) {
 
 
     ) {
-        IncrementDecrementComponent(size = 2, 0, {})
+        IncrementDecrementComponent(
+            size = 2,
+            count.value,
+            onClick = { countId ->
+
+                if (countId == "+") {
+                    count.value += 1
+                } else if (countId == "-" && count.value > 1) {
+                    count.value -= 1
+                }
+            })
+        Log.d("sum", sum.toString())
         Button(
             shape = RoundedCornerShape(size = 40.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00a5ce)),
@@ -477,7 +505,7 @@ fun BottomBar(sum: Int) {
             onClick = { },
         ) {
             Text(
-                text = "Add to Card ${sum}",
+                text = "Add to Card ${sum * count.value}",
                 fontSize = 15.sp,
                 fontWeight = FontWeight.W700,
                 color = Color.White,

@@ -125,7 +125,7 @@ class MyViewModel : ViewModel() {
 }
 
 data class SelectedChild(
-    val quantity: Int = 0,
+    var quantity: Int = 0,
     val price: Int = 0,
     val id: String
 )
